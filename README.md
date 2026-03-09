@@ -7,8 +7,18 @@ It is a lightweight account manager and status bar selector.
 When you switch profiles,
 it updates `~/.codex/auth.json` so Codex CLI uses the active profile.
 
-Tokens are stored in VS Code SecretStorage.
-Profile metadata (name, email, plan) is stored in the extension global storage.
+By default, local sessions store profile credentials in VS Code SecretStorage.
+
+When the extension runs in an SSH remote session and
+`codexSwitch.storageMode` is set to `auto` (the default),
+it switches to a shared remote file store under `~/.codex-switch/`:
+
+- `profiles.json` for profile metadata
+- `profiles/<profile-id>.json` for stored auth blobs
+- `active-profile.json` for the currently selected profile
+
+The shared store is intended for teams who connect to the same remote host
+from different local machines and want profile switching to stay in sync.
 
 ## Setup
 
@@ -26,10 +36,40 @@ or use `Codex Switch: Manage Profiles` to switch, rename, or delete profiles.
 ## Settings
 
 * `codexSwitch.activeProfileScope`: `global` or `workspace`
+* `codexSwitch.storageMode`: `auto`, `secretStorage`, or `remoteFiles`
 * `codexSwitch.debugLogging`: enable debug logs (never prints tokens)
 * `codexSwitch.reloadWindowAfterProfileSwitch`: reload VS Code window
   after successful profile switch/import so Codex extension re-reads
   `auth.json` (default: `false`)
+
+### Storage Modes
+
+- `auto`: use `remoteFiles` when `vscode.env.remoteName === "ssh-remote"`,
+  otherwise use `secretStorage`
+- `secretStorage`: always keep per-profile auth data in VS Code SecretStorage
+- `remoteFiles`: always keep per-profile auth data in `~/.codex-switch/`
+
+## Shared Remote Behavior
+
+In `remoteFiles` mode, the extension treats the remote host as the source of truth.
+It watches both `~/.codex/auth.json` and the shared store under `~/.codex-switch/`
+so that if one client switches or imports a profile, other clients connected
+to the same SSH host refresh their status bar and tooltip state.
+
+When resolving the active profile in `remoteFiles` mode, the extension prefers
+the current `~/.codex/auth.json` match and keeps `active-profile.json` in sync
+with it. This makes manual `codex login` recovery and older clients safer.
+
+## Recovery
+
+If a profile exists but its stored auth blob is missing, the extension now offers:
+
+- `Recover from remote store`
+- `Import current ~/.codex/auth.json`
+- `Delete broken profile`
+
+This is mainly useful when migrating from the old SecretStorage-only behavior
+or when one client still has profile metadata but not the corresponding secrets.
 
 ## IDE Reload Behavior
 

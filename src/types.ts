@@ -8,6 +8,8 @@ export interface AuthData {
     authJson?: Record<string, unknown>;
 }
 
+export type StorageMode = 'auto' | 'secretStorage' | 'remoteFiles';
+
 export interface ProfileSummary {
     id: string;
     name: string;

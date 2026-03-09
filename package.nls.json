@@ -4,6 +4,7 @@
   "configuration.title": "Codex Switch",
   "configuration.debugLogging.description": "Enable verbose logging (never prints tokens)",
   "configuration.activeProfileScope.description": "Where to store active profile selection",
+  "configuration.storageMode.description": "Where profile credentials are stored. In auto mode, SSH remote sessions use a shared remote file store and local sessions use SecretStorage",
   "configuration.reloadWindowAfterProfileSwitch.description": "Reload VS Code window after successful profile switch/import so Codex extension re-reads auth.json",
   "configuration.maxAuthBackups.description": "Maximum number of auth.json backups to keep (0 disables backups)",
   "command.login.title": "Codex Switch: Login Help",

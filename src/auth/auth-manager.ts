@@ -22,11 +22,17 @@ function parseJWT(token: string): any {
 }
 
 /**
+ * Resolve default Codex home path.
+ */
+export function getDefaultCodexHomePath(): string {
+  return process.env.CODEX_HOME || path.join(os.homedir(), '.codex')
+}
+
+/**
  * Resolve default Codex auth file path.
  */
 export function getDefaultCodexAuthPath(): string {
-  const codexHome = process.env.CODEX_HOME || path.join(os.homedir(), '.codex')
-  return path.join(codexHome, 'auth.json')
+  return path.join(getDefaultCodexHomePath(), 'auth.json')
 }
 
 export async function loadAuthDataFromFile(

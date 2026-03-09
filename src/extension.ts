@@ -28,6 +28,9 @@ export function activate(context: vscode.ExtensionContext) {
   }
 
   registerCommands(context, profileManager, refreshUi)
+  context.subscriptions.push(...profileManager.createWatchers(() => {
+    void refreshUi()
+  }))
   void refreshUi()
   void profileManager.syncActiveProfileToCodexAuthFile()
 }

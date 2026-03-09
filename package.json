@@ -94,6 +94,16 @@
           "default": "global",
           "description": "%configuration.activeProfileScope.description%"
         },
+        "codexSwitch.storageMode": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "secretStorage",
+            "remoteFiles"
+          ],
+          "default": "auto",
+          "description": "%configuration.storageMode.description%"
+        },
         "codexSwitch.reloadWindowAfterProfileSwitch": {
           "type": "boolean",
           "default": false,
