@@ -68,14 +68,6 @@ export class ProfileManager {
     return this.getResolvedStorageMode() === 'remoteFiles'
   }
 
-  private getMaxAuthBackups(): number {
-    const cfg = vscode.workspace.getConfiguration('codexSwitch')
-    const raw = cfg.get<number>('maxAuthBackups', 10)
-    const n = typeof raw === 'number' ? raw : Number(raw)
-    if (!Number.isFinite(n)) return 10
-    return Math.max(0, Math.floor(n))
-  }
-
   private normalizeEmail(email: string | undefined): string {
     return String(email || '').trim().toLowerCase()
   }
@@ -111,30 +103,9 @@ export class ProfileManager {
 
     const pe = this.normalizeEmail(profile.email)
     const ae = this.normalizeEmail(authData.email)
-    const hasComparableEmail =
-      Boolean(pe) &&
-      Boolean(ae) &&
-      pe !== 'unknown' &&
-      ae !== 'unknown'
-    const hasComparableAccountId =
-      Boolean(authData.accountId) && Boolean(profile.accountId)
-
-    // When both identifiers are present, require both to match.
-    // Team accounts can share accountId across different users, and the same
-    // email can legitimately have multiple plans/accounts.
-    if (hasComparableEmail && hasComparableAccountId) {
-      return pe === ae && authData.accountId === profile.accountId
-    }
-
-    if (hasComparableEmail) {
-      return pe === ae
-    }
-
-    if (hasComparableAccountId) {
-      return authData.accountId === profile.accountId
-    }
-
-    return false
+    if (!pe || !ae) return false
+    if (pe === 'unknown' || ae === 'unknown') return false
+    return pe === ae
   }
 
   private getStorageDir(): string {
@@ -469,9 +440,7 @@ export class ProfileManager {
     const authData = await this.loadAuthData(profileId)
     if (!authData) return
 
-    syncCodexAuthFile(getDefaultCodexAuthPath(), authData, {
-      maxBackups: this.getMaxAuthBackups(),
-    })
+    syncCodexAuthFile(getDefaultCodexAuthPath(), authData)
     this.lastSyncedProfileId = profileId
   }
 
@@ -644,9 +613,7 @@ export class ProfileManager {
 
     if (profileId && authData) {
       // We already validated tokens above; avoid a second secret read.
-      syncCodexAuthFile(getDefaultCodexAuthPath(), authData, {
-        maxBackups: this.getMaxAuthBackups(),
-      })
+      syncCodexAuthFile(getDefaultCodexAuthPath(), authData)
       this.lastSyncedProfileId = profileId
     }
     return true
