@@ -30,9 +30,7 @@ export function createProfileTooltip(
       const name = escapeMarkdown(p.name)
       const rawPlan = p.planType || 'Unknown'
       const planDisplay =
-        rawPlan === 'Unknown'
-          ? vscode.l10n.t('Unknown')
-          : rawPlan.toUpperCase()
+        rawPlan === 'Unknown' ? vscode.l10n.t('Unknown') : rawPlan.toUpperCase()
       const plan = escapeMarkdown(planDisplay)
       const switchUri = buildCommandUri('codex-switch.profile.activate', [p.id])
       const label =

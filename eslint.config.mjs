@@ -5,10 +5,7 @@ import tsPlugin from '@typescript-eslint/eslint-plugin'
 
 export default [
   {
-    ignores: [
-      'node_modules/**',
-      'out/**',
-    ],
+    ignores: ['node_modules/**', 'out/**'],
   },
   js.configs.recommended,
   {
@@ -35,7 +32,10 @@ export default [
 
       // TypeScript-centric tuning
       'no-unused-vars': 'off',
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_' },
+      ],
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-empty-interface': 'off',
 

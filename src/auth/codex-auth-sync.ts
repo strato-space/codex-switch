@@ -46,7 +46,9 @@ export function syncCodexAuthFile(authPath: string, authData: AuthData) {
     }
   } finally {
     try {
-      if (fs.existsSync(tmpPath)) { fs.unlinkSync(tmpPath) }
+      if (fs.existsSync(tmpPath)) {
+        fs.unlinkSync(tmpPath)
+      }
     } catch {
       // ignore
     }

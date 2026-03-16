@@ -7,7 +7,9 @@ import { AuthData } from '../types'
 import { errorLog } from '../utils/log'
 
 function asNonEmptyString(value: unknown): string | undefined {
-  if (typeof value !== 'string') { return undefined }
+  if (typeof value !== 'string') {
+    return undefined
+  }
   const v = value.trim()
   return v ? v : undefined
 }
@@ -25,7 +27,9 @@ function getDefaultOrganization(authPayload: any): {
     : []
 
   if (directId) {
-    const match = organizations.find((org: any) => asNonEmptyString(org?.id) === directId)
+    const match = organizations.find(
+      (org: any) => asNonEmptyString(org?.id) === directId,
+    )
     return {
       id: directId,
       title: asNonEmptyString(match?.title),
@@ -36,7 +40,8 @@ function getDefaultOrganization(authPayload: any): {
     return {}
   }
 
-  const selected = organizations.find((org: any) => org?.is_default) || organizations[0]
+  const selected =
+    organizations.find((org: any) => org?.is_default) || organizations[0]
   return {
     id: asNonEmptyString(selected?.id),
     title: asNonEmptyString(selected?.title),
@@ -72,14 +77,18 @@ export function getDefaultCodexHomePath(): string {
  */
 export function getDefaultCodexAuthPath(): string {
   const localPath = path.join(getDefaultCodexHomePath(), 'auth.json')
-  if (!shouldUseWslAuthPath()) { return localPath }
+  if (!shouldUseWslAuthPath()) {
+    return localPath
+  }
 
   const wslPath = resolveWslDefaultCodexAuthPath()
   return wslPath || localPath
 }
 
 export function shouldUseWslAuthPath(): boolean {
-  if (process.platform !== 'win32') { return false }
+  if (process.platform !== 'win32') {
+    return false
+  }
   return !!vscode.workspace
     .getConfiguration('chatgpt')
     .get<boolean>('runCodexInWindowsSubsystemForLinux', false)

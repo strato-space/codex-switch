@@ -3,4 +3,3 @@ export function escapeMarkdown(text: string): string {
   // can't inject formatting or links into tooltips.
   return text.replace(/[\\`*_{}[\]()#+\-.!|>]/g, '\\$&')
 }
-

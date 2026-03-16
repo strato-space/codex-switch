@@ -1,6 +1,6 @@
 globs:
-  - "**/*.md"
-  - "!node_modules/**"
+  - '**/*.md'
+  - '!node_modules/**'
 
 config:
   default: true
@@ -43,7 +43,7 @@ config:
   MD024:
     siblings_only: true
   MD026:
-    punctuation: ".,;:!。，；：！?"
+    punctuation: '.,;:!。，；：！?'
   MD027: true
   MD028: true
   MD029:
@@ -62,7 +62,7 @@ config:
   MD035:
     style: consistent
   MD036:
-    punctuation: ".,;:!?。，；：！？"
+    punctuation: '.,;:!?。，；：！？'
   MD037: true
   MD038: true
   MD039: true

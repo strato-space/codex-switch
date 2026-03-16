@@ -69,7 +69,9 @@ export class ProfileManager {
   }
 
   private normalizeEmail(email: string | undefined): string {
-    return String(email || '').trim().toLowerCase()
+    return String(email || '')
+      .trim()
+      .toLowerCase()
   }
 
   private normalizeIdentity(value: string | undefined): string {
@@ -82,13 +84,19 @@ export class ProfileManager {
   ): boolean | undefined {
     const p = this.normalizeIdentity(profileValue)
     const a = this.normalizeIdentity(authValue)
-    if (!p || !a) { return undefined }
+    if (!p || !a) {
+      return undefined
+    }
     return p === a
   }
 
   private matchesAuth(profile: ProfileSummary, authData: AuthData): boolean {
-    const hasProfileOrganizationId = Boolean(this.normalizeIdentity(profile.defaultOrganizationId))
-    const hasAuthOrganizationId = Boolean(this.normalizeIdentity(authData.defaultOrganizationId))
+    const hasProfileOrganizationId = Boolean(
+      this.normalizeIdentity(profile.defaultOrganizationId),
+    )
+    const hasAuthOrganizationId = Boolean(
+      this.normalizeIdentity(authData.defaultOrganizationId),
+    )
     const organizationIdMatch = this.compareIdentityField(
       profile.defaultOrganizationId,
       authData.defaultOrganizationId,
@@ -104,10 +112,14 @@ export class ProfileManager {
     ].filter((v): v is boolean => v !== undefined)
 
     if (identityMatches.length > 0) {
-      if (identityMatches.some((v) => !v)) { return false }
+      if (identityMatches.some((v) => !v)) {
+        return false
+      }
       if (hasProfileOrganizationId || hasAuthOrganizationId) {
         // If workspace is known only on one side, avoid collapsing profiles.
-        if (organizationIdMatch === undefined) { return false }
+        if (organizationIdMatch === undefined) {
+          return false
+        }
         return organizationIdMatch
       }
       return true
@@ -116,10 +128,7 @@ export class ProfileManager {
     const pe = this.normalizeEmail(profile.email)
     const ae = this.normalizeEmail(authData.email)
     const hasComparableEmail =
-      Boolean(pe) &&
-      Boolean(ae) &&
-      pe !== 'unknown' &&
-      ae !== 'unknown'
+      Boolean(pe) && Boolean(ae) && pe !== 'unknown' && ae !== 'unknown'
     const hasComparableAccountId =
       Boolean(authData.accountId) && Boolean(profile.accountId)
     const accountIdMatch = hasComparableAccountId
@@ -127,12 +136,19 @@ export class ProfileManager {
       : false
     const hasComparableOrganizationId = organizationIdMatch !== undefined
 
-    if ((hasProfileOrganizationId || hasAuthOrganizationId) && !hasComparableOrganizationId) {
+    if (
+      (hasProfileOrganizationId || hasAuthOrganizationId) &&
+      !hasComparableOrganizationId
+    ) {
       // Workspace is known only on one side: treat as distinct to avoid false matches.
       return false
     }
 
-    if (hasComparableEmail && hasComparableAccountId && hasComparableOrganizationId) {
+    if (
+      hasComparableEmail &&
+      hasComparableAccountId &&
+      hasComparableOrganizationId
+    ) {
       return pe === ae && accountIdMatch && organizationIdMatch === true
     }
 
@@ -190,7 +206,11 @@ export class ProfileManager {
     }
 
     // Legacy format: { profiles: [...] } without a version.
-    if (parsed && typeof parsed === 'object' && Array.isArray(parsed.profiles)) {
+    if (
+      parsed &&
+      typeof parsed === 'object' &&
+      Array.isArray(parsed.profiles)
+    ) {
       return { version: 1, profiles: parsed.profiles as ProfileSummary[] }
     }
 
@@ -212,7 +232,9 @@ export class ProfileManager {
     try {
       if (this.isRemoteFilesMode()) {
         const parsed = readJsonFile<any>(filePath)
-        if (parsed == null) { return { version: 1, profiles: [] } }
+        if (parsed == null) {
+          return { version: 1, profiles: [] }
+        }
         return this.parseProfilesFile(JSON.stringify(parsed))
       }
       const raw = fs.readFileSync(filePath, 'utf8')
@@ -244,12 +266,16 @@ export class ProfileManager {
   }
 
   private readSharedActiveProfile(): SharedActiveProfile | null {
-    if (!this.isRemoteFilesMode()) { return null }
+    if (!this.isRemoteFilesMode()) {
+      return null
+    }
     return readJsonFile<SharedActiveProfile>(getSharedActiveProfilePath())
   }
 
   private writeSharedActiveProfile(profileId: string): void {
-    if (!this.isRemoteFilesMode()) { return }
+    if (!this.isRemoteFilesMode()) {
+      return
+    }
     writeJsonFile(getSharedActiveProfilePath(), {
       profileId,
       updatedAt: new Date().toISOString(),
@@ -257,7 +283,9 @@ export class ProfileManager {
   }
 
   private deleteSharedActiveProfile(): void {
-    if (!this.isRemoteFilesMode()) { return }
+    if (!this.isRemoteFilesMode()) {
+      return
+    }
     deleteFileIfExists(getSharedActiveProfilePath())
   }
 
@@ -265,7 +293,9 @@ export class ProfileManager {
     return readJsonFile<ProfileTokens>(getSharedProfileSecretsPath(profileId))
   }
 
-  private async readStoredTokens(profileId: string): Promise<ProfileTokens | null> {
+  private async readStoredTokens(
+    profileId: string,
+  ): Promise<ProfileTokens | null> {
     if (this.isRemoteFilesMode()) {
       return this.readRemoteProfileTokens(profileId)
     }
@@ -273,7 +303,9 @@ export class ProfileManager {
     const raw =
       (await this.context.secrets.get(this.secretKey(profileId))) ||
       (await this.context.secrets.get(this.legacySecretKey(profileId)))
-    if (!raw) { return null }
+    if (!raw) {
+      return null
+    }
 
     try {
       return JSON.parse(raw) as ProfileTokens
@@ -282,14 +314,20 @@ export class ProfileManager {
     }
   }
 
-  private async writeStoredTokens(profileId: string, tokens: ProfileTokens): Promise<void> {
+  private async writeStoredTokens(
+    profileId: string,
+    tokens: ProfileTokens,
+  ): Promise<void> {
     if (this.isRemoteFilesMode()) {
       ensureSharedStoreDirs()
       writeJsonFile(getSharedProfileSecretsPath(profileId), tokens)
       return
     }
 
-    await this.context.secrets.store(this.secretKey(profileId), JSON.stringify(tokens))
+    await this.context.secrets.store(
+      this.secretKey(profileId),
+      JSON.stringify(tokens),
+    )
   }
 
   private async deleteStoredTokens(profileId: string): Promise<void> {
@@ -308,7 +346,9 @@ export class ProfileManager {
   }
 
   private async tryMigrateLegacyProfilesOnce(): Promise<void> {
-    if (this.context.globalState.get<boolean>(MIGRATED_LEGACY_KEY)) { return }
+    if (this.context.globalState.get<boolean>(MIGRATED_LEGACY_KEY)) {
+      return
+    }
 
     const current = await this.readProfilesFile()
     if (current.profiles.length > 0) {
@@ -328,10 +368,16 @@ export class ProfileManager {
     try {
       const entries = fs.readdirSync(root, { withFileTypes: true })
       for (const e of entries) {
-        if (!e.isDirectory()) { continue }
+        if (!e.isDirectory()) {
+          continue
+        }
         const name = e.name
-        if (name === currentDirName) { continue }
-        if (!name.endsWith('.codex-switch') && !name.endsWith('.codex-stats')) { continue }
+        if (name === currentDirName) {
+          continue
+        }
+        if (!name.endsWith('.codex-switch') && !name.endsWith('.codex-stats')) {
+          continue
+        }
         candidates.push(name)
       }
     } catch {
@@ -342,8 +388,12 @@ export class ProfileManager {
     // Prefer older ids we used during development.
     candidates.sort((a, b) => {
       const rank = (n: string) => {
-        if (n.toLowerCase().includes('codex-switch')) { return 0 }
-        if (n.toLowerCase().includes('codex-stats')) { return 1 }
+        if (n.toLowerCase().includes('codex-switch')) {
+          return 0
+        }
+        if (n.toLowerCase().includes('codex-stats')) {
+          return 1
+        }
         return 2
       }
       return rank(a) - rank(b)
@@ -351,12 +401,16 @@ export class ProfileManager {
 
     for (const dirName of candidates) {
       const legacyProfilesPath = path.join(root, dirName, PROFILES_FILENAME)
-      if (!fs.existsSync(legacyProfilesPath)) { continue }
+      if (!fs.existsSync(legacyProfilesPath)) {
+        continue
+      }
 
       try {
         const raw = fs.readFileSync(legacyProfilesPath, 'utf8')
         const legacy = this.parseProfilesFile(raw)
-        if (!legacy.profiles || legacy.profiles.length === 0) { continue }
+        if (!legacy.profiles || legacy.profiles.length === 0) {
+          continue
+        }
 
         // Only migrate the profile list. Tokens are stored in SecretStorage and cannot be
         // read across extension ids.
@@ -387,21 +441,29 @@ export class ProfileManager {
     return profiles.find((p) => p.id === profileId)
   }
 
-  private async inferActiveProfileIdFromAuthFile(): Promise<string | undefined> {
+  private async inferActiveProfileIdFromAuthFile(): Promise<
+    string | undefined
+  > {
     const authData = await loadAuthDataFromFile(getDefaultCodexAuthPath())
-    if (!authData) { return undefined }
+    if (!authData) {
+      return undefined
+    }
 
     const file = await this.readProfilesFile()
     const match = file.profiles.find((p) => this.matchesAuth(p, authData))
     return match?.id
   }
 
-  async findDuplicateProfile(authData: AuthData): Promise<ProfileSummary | undefined> {
+  async findDuplicateProfile(
+    authData: AuthData,
+  ): Promise<ProfileSummary | undefined> {
     const file = await this.readProfilesFile()
     return file.profiles.find((p) => this.matchesAuth(p, authData))
   }
 
-  private async recoverMissingTokens(profileId: string): Promise<AuthData | null> {
+  private async recoverMissingTokens(
+    profileId: string,
+  ): Promise<AuthData | null> {
     const profile = await this.getProfile(profileId)
     const recoverLabel = vscode.l10n.t('Recover from remote store')
     const importLabel = vscode.l10n.t('Import current ~/.codex/auth.json')
@@ -452,10 +514,15 @@ export class ProfileManager {
     return null
   }
 
-  async replaceProfileAuth(profileId: string, authData: AuthData): Promise<boolean> {
+  async replaceProfileAuth(
+    profileId: string,
+    authData: AuthData,
+  ): Promise<boolean> {
     const file = await this.readProfilesFile()
     const idx = file.profiles.findIndex((p) => p.id === profileId)
-    if (idx === -1) { return false }
+    if (idx === -1) {
+      return false
+    }
 
     file.profiles[idx] = {
       ...file.profiles[idx],
@@ -483,17 +550,26 @@ export class ProfileManager {
   }
 
   private async maybeSyncToCodexAuthFile(profileId: string): Promise<void> {
-    if (!profileId) { return }
-    if (this.lastSyncedProfileId === profileId) { return }
+    if (!profileId) {
+      return
+    }
+    if (this.lastSyncedProfileId === profileId) {
+      return
+    }
 
     const authData = await this.loadAuthData(profileId)
-    if (!authData) { return }
+    if (!authData) {
+      return
+    }
 
     syncCodexAuthFile(getDefaultCodexAuthPath(), authData)
     this.lastSyncedProfileId = profileId
   }
 
-  async createProfile(name: string, authData: AuthData): Promise<ProfileSummary> {
+  async createProfile(
+    name: string,
+    authData: AuthData,
+  ): Promise<ProfileSummary> {
     const now = new Date().toISOString()
     const id = randomUUID()
 
@@ -531,7 +607,9 @@ export class ProfileManager {
   async renameProfile(profileId: string, newName: string): Promise<boolean> {
     const file = await this.readProfilesFile()
     const idx = file.profiles.findIndex((p) => p.id === profileId)
-    if (idx === -1) { return false }
+    if (idx === -1) {
+      return false
+    }
     file.profiles[idx] = {
       ...file.profiles[idx],
       name: newName,
@@ -545,7 +623,9 @@ export class ProfileManager {
     const file = await this.readProfilesFile()
     const before = file.profiles.length
     file.profiles = file.profiles.filter((p) => p.id !== profileId)
-    if (file.profiles.length === before) { return false }
+    if (file.profiles.length === before) {
+      return false
+    }
     this.writeProfilesFile(file)
 
     await this.deleteStoredTokens(profileId)
@@ -553,17 +633,25 @@ export class ProfileManager {
     // Clean up active/last if they point to deleted profile.
     const active = await this.getActiveProfileId()
     const last = await this.getLastProfileId()
-    if (active === profileId) { await this.setActiveProfileId(undefined) }
-    if (last === profileId) { await this.setLastProfileId(undefined) }
+    if (active === profileId) {
+      await this.setActiveProfileId(undefined)
+    }
+    if (last === profileId) {
+      await this.setLastProfileId(undefined)
+    }
     return true
   }
 
   async loadAuthData(profileId: string): Promise<AuthData | null> {
     const profile = await this.getProfile(profileId)
-    if (!profile) { return null }
+    if (!profile) {
+      return null
+    }
 
     const tokens = await this.readStoredTokens(profileId)
-    if (!tokens) { return null }
+    if (!tokens) {
+      return null
+    }
 
     return {
       idToken: tokens.idToken,
@@ -583,20 +671,26 @@ export class ProfileManager {
 
   private getStateBucket(): vscode.Memento {
     const newCfg = vscode.workspace.getConfiguration('codexSwitch')
-    const scopeFromNew = newCfg.get<'global' | 'workspace'>('activeProfileScope')
+    const scopeFromNew = newCfg.get<'global' | 'workspace'>(
+      'activeProfileScope',
+    )
     const scope =
       scopeFromNew ||
       vscode.workspace
         .getConfiguration('codexUsage')
         .get<'global' | 'workspace'>('activeProfileScope', 'global')
-    return scope === 'workspace' ? this.context.workspaceState : this.context.globalState
+    return scope === 'workspace'
+      ? this.context.workspaceState
+      : this.context.globalState
   }
 
   private getLegacyStateBucket(): vscode.Memento {
     const scope = vscode.workspace
       .getConfiguration('codexUsage')
       .get<'global' | 'workspace'>('activeProfileScope', 'global')
-    return scope === 'workspace' ? this.context.workspaceState : this.context.globalState
+    return scope === 'workspace'
+      ? this.context.workspaceState
+      : this.context.globalState
   }
 
   async getActiveProfileId(): Promise<string | undefined> {
@@ -616,7 +710,9 @@ export class ProfileManager {
 
     const bucket = this.getStateBucket()
     const v = bucket.get<string>(ACTIVE_PROFILE_KEY)
-    if (v) { return v }
+    if (v) {
+      return v
+    }
 
     // Migrate old key lazily.
     const legacyBucket = this.getLegacyStateBucket()
@@ -634,18 +730,19 @@ export class ProfileManager {
 
   async setActiveProfileId(profileId: string | undefined): Promise<boolean> {
     const bucket = this.getStateBucket()
-    const prev =
-      (this.isRemoteFilesMode()
-        ? await this.getActiveProfileId()
-        : bucket.get<string>(ACTIVE_PROFILE_KEY) ||
-          bucket.get<string>(OLD_ACTIVE_PROFILE_KEY))
+    const prev = this.isRemoteFilesMode()
+      ? await this.getActiveProfileId()
+      : bucket.get<string>(ACTIVE_PROFILE_KEY) ||
+        bucket.get<string>(OLD_ACTIVE_PROFILE_KEY)
 
     let authData: AuthData | null = null
     if (profileId) {
       authData = await this.loadAuthData(profileId)
       if (!authData) {
         authData = await this.recoverMissingTokens(profileId)
-        if (!authData) { return false }
+        if (!authData) {
+          return false
+        }
       }
     }
 
@@ -675,7 +772,9 @@ export class ProfileManager {
   async getLastProfileId(): Promise<string | undefined> {
     const bucket = this.getStateBucket()
     const v = bucket.get<string>(LAST_PROFILE_KEY)
-    if (v) { return v }
+    if (v) {
+      return v
+    }
 
     const legacyBucket = this.getLegacyStateBucket()
     const old =
@@ -699,7 +798,9 @@ export class ProfileManager {
   async toggleLastProfileId(): Promise<string | undefined> {
     const active = await this.getActiveProfileId()
     const last = await this.getLastProfileId()
-    if (!last) { return undefined }
+    if (!last) {
+      return undefined
+    }
 
     const ok = await this.setActiveProfileId(last)
     if (ok && active) {
@@ -711,7 +812,9 @@ export class ProfileManager {
 
   async syncActiveProfileToCodexAuthFile(): Promise<void> {
     const active = await this.getActiveProfileId()
-    if (!active) { return }
+    if (!active) {
+      return
+    }
     await this.maybeSyncToCodexAuthFile(active)
   }
 
@@ -758,7 +861,10 @@ export class ProfileManager {
       disposables.push(activeWatcher)
 
       const tokenWatcher = vscode.workspace.createFileSystemWatcher(
-        new vscode.RelativePattern(vscode.Uri.file(getSharedProfilesDir()), '*.json'),
+        new vscode.RelativePattern(
+          vscode.Uri.file(getSharedProfilesDir()),
+          '*.json',
+        ),
       )
       tokenWatcher.onDidCreate(fire)
       tokenWatcher.onDidChange(fire)

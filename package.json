@@ -16,7 +16,9 @@
     "compile": "tsc -p ./",
     "lint:ts": "eslint \"src/**/*.ts\" --max-warnings=0",
     "lint:md": "markdownlint-cli2",
-    "lint": "npm run lint:ts && npm run lint:md",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "npm run lint:ts && npm run lint:md && npm run format:check",
     "vscode:package": "vsce package",
     "watch": "tsc -watch -p ./"
   },
@@ -137,6 +139,7 @@
     "eslint": "^10.0.3",
     "globals": "^17.4.0",
     "markdownlint-cli2": "^0.21.0",
+    "prettier": "^3.8.1",
     "typescript": "^5.9.3",
     "vsce": "^2.15.0"
   }
