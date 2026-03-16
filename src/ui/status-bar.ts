@@ -46,12 +46,3 @@ export function updateProfileStatus(
 export function getStatusBarItem(): vscode.StatusBarItem {
   return statusBarItem
 }
-
-export function closeStatusBarTooltip(): void {
-  if (!statusBarItem) {
-    return
-  }
-  // Force tooltip dismissal after command links are clicked.
-  statusBarItem.hide()
-  statusBarItem.show()
-}
