@@ -40,7 +40,7 @@ export function syncCodexAuthFile(authPath: string, authData: AuthData) {
     try {
       fs.renameSync(tmpPath, authPath)
       return
-    } catch (e: any) {
+    } catch {
       // Fall back to non-atomic replace.
       fs.copyFileSync(tmpPath, authPath)
     }

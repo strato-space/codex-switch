@@ -45,7 +45,7 @@ export function createProfileTooltip(
     tooltip.appendMarkdown('\n')
   }
 
-  tooltip.appendMarkdown(`---\n\n`)
+  tooltip.appendMarkdown('---\n\n')
   tooltip.appendMarkdown(
     `[${vscode.l10n.t('Manage profiles')}](command:codex-switch.profile.manage)\n\n`,
   )
