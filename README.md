@@ -120,14 +120,3 @@ where shared profile state is expected.
 Sync writes `auth.json` via a temp-file-and-replace flow
 to reduce partial write risk.
 The extension does not create rotated backup files like `auth.json.bak.*`.
-
-## Development
-
-Useful commands:
-
-* `npm run compile`
-* `npm run watch`
-* `npm run lint:ts`
-* `npm run lint:md`
-* `npm run lint`
-* `npm run vscode:package`
