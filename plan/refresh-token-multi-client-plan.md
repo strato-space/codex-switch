@@ -16,8 +16,10 @@ Secondary goal:
 ## 2) Terms
 
 - `local chain head`: refresh token state currently stored in local `auth.json`.
-- `authoritative chain head`: latest server-accepted token state relevant to the active rotation regime.
-- `chain integrity`: local chain head corresponds to a server-issued token that is not known to be consumed or invalidated, and is backed by an authoritative server outcome within verification window `T` (or is explicitly quarantined under ambiguous-failure flow).
+- `authoritative candidate set`: server-accepted token states currently valid under the active rotation regime.
+- `authoritative chain head`: deterministic selection from the authoritative candidate set; use freshness precedence (`last_refresh` -> `iat` -> `mtime`) and fall back to ambiguous/quarantine flow if ordering cannot be established.
+- `chain integrity`: local chain head corresponds to a server-issued token that is not known to be consumed or invalidated, and is backed by an authoritative server outcome within verification window `T`.
+- `quarantine safety state`: temporary non-write state used when validity cannot be established yet (for example, ambiguous failures), pending probe/retry or operator action.
 - `writer`: any process that can modify `auth.json`.
 - `cooperative writer`: writer that follows this lock + CAS protocol.
 - `local safety`: any individual cooperative writer never destroys fresher local state by its own actions.
@@ -29,7 +31,7 @@ Secondary goal:
 Refresh token behavior is regime-dependent and not a plain config update.
 Therefore:
 - multi-writer is safe only with strict coordination;
-- under non-cooperative or untrusted-backend conditions, race failures are expected (`refresh token already used`).
+- under non-cooperative or untrusted-backend conditions, race failures are expected (`refresh token already used`) outside benign `gracePeriod` semantics.
 - filesystem lock guarantees are backend-dependent (local FS vs weak/distributed/NFS semantics).
 - lock trust is policy-based, not inferred optimistically at runtime.
 - unknown/untrusted backend must fail closed: write-path degrades to read-only safety mode.
@@ -78,6 +80,7 @@ Freshness precedence:
 1. `last_refresh` from payload (if valid).
 2. `iat` claim (if valid).
 3. `mtime` fallback only.
+4. tie-break on equal freshness: stable lexical ordering of token fingerprint (`sha256(refresh_token)`); if tie-break input is missing/inconsistent, fall back to ambiguous/quarantine flow.
 
 CAS identity:
 - hash fingerprint of current refresh token (`sha256(refresh_token)`), never raw token in logs.
@@ -105,7 +108,7 @@ CAS identity:
 3. Re-read disk fingerprint just before commit.
 4. If mismatch:
    - Under `strictSingleUse`: `Conflict`, abort write, journal event, user action required.
-   - Under `gracePeriod`: attempt auto-resolution only if provider offers non-consuming validity evidence (or explicit grace semantics). Compare freshness using §6 precedence (`last_refresh` -> `iat` -> `mtime`); if disk token is fresher, pull it silently and skip push; if prepared token is fresher, proceed with write. If validity evidence is unavailable or freshness is indeterminate, treat as ambiguous failure and follow §10 ambiguous flow.
+   - Under `gracePeriod`: attempt auto-resolution only if `codexSwitch.providerCapabilities.nonConsumingValidation=true` (or equivalent explicit grace semantics). Compare freshness using §6 precedence (`last_refresh` -> `iat` -> `mtime`); if disk token is fresher, pull it silently and skip push; if prepared token is fresher, proceed with write. If validity evidence is unavailable or freshness is indeterminate, treat as ambiguous failure and follow §10 ambiguous flow.
    - Under `familyInvalidation`: `Conflict`, abort write, and enter quarantine with mandatory bounded probe; force re-auth only on authoritative rejection or exhausted probe policy.
 5. If match: write temp file, backup rotate, atomic replace.
 6. If subsequent refresh attempt is authoritatively rejected by the server, transition to `Conflict` and block further writes until reconciliation. (Ambiguous failures are handled by step 7.)
@@ -139,6 +142,15 @@ Add `codexSwitch.multiClientPolicy`:
 - unified probe policy (`codexSwitch.probePolicy`):
   - single source of truth for ambiguous/quarantine probes: `K` attempts, exponential backoff parameters, and termination/escalation conditions.
   - all probe-based branches (`ambiguous failure`, `gracePeriod` without validity evidence, `familyInvalidation` quarantine) MUST reuse this policy.
+- deterministic tie-break policy:
+  - when freshness signals are equal, apply stable lexical ordering of token fingerprint.
+  - if deterministic tie-break cannot be computed, do not auto-resolve; route to ambiguous/quarantine flow.
+- provider capability policy (`codexSwitch.providerCapabilities.nonConsumingValidation`):
+  - explicit per-provider flag indicating whether non-consuming validity evidence exists and is supported.
+  - default `false`; gracePeriod auto-resolution MUST NOT run when capability is `false`.
+- verification window policy (`codexSwitch.verificationWindowMs`):
+  - maximum age for authoritative server evidence used to assert chain integrity (defines `T` from §2).
+  - evidence older than `T` is treated as stale evidence and must follow ambiguous/quarantine flow.
 
 ## 9) File-Level Implementation Plan
 
@@ -175,7 +187,7 @@ When conflict detected:
      - authoritative rejection: treat local chain as stale and force re-login/import.
      - ambiguous failure: follow unified probe policy (`codexSwitch.probePolicy`), then escalate on exhaustion.
    - `gracePeriod`:
-     - attempt auto-resolution only with non-consuming validity evidence and §6 freshness precedence (`last_refresh` -> `iat` -> `mtime`);
+     - attempt auto-resolution only when `codexSwitch.providerCapabilities.nonConsumingValidation=true` and with §6 freshness precedence (`last_refresh` -> `iat` -> `mtime`);
      - if evidence unavailable, follow unified probe policy (`codexSwitch.probePolicy`) (no silent auto-resolve).
    - `familyInvalidation`:
      - enter quarantine and run mandatory probes via unified probe policy (`codexSwitch.probePolicy`);
@@ -214,6 +226,7 @@ Integration tests:
 - grace-period regime with validity evidence -> benign fork auto-resolves without operator conflict.
 - grace-period regime without validity evidence -> falls to §10 ambiguous flow, not silent auto-resolve.
 - family-invalidation regime -> quarantine + mandatory probe path is triggered; forced re-auth only after authoritative reject or exhausted probe policy.
+- authoritative evidence older than `T` (`codexSwitch.verificationWindowMs`) -> chain integrity cannot be asserted; flow degrades to ambiguous/quarantine handling.
 
 Acceptance criteria:
 - no silent downgrade of local chain head;
@@ -223,3 +236,4 @@ Acceptance criteria:
 - no accepted post-conflict state after provider rejection; authoritative incompatibility always forces conflict + re-auth/import flow.
 - extension automatically disables write-path (read-only safety mode) when lock reliability is not established, including unknown/untrusted backends unless explicitly trusted by `codexSwitch.trustedLockBackend`.
 - ambiguous server failures do not immediately force stale-marking; bounded probe/retry is enforced first.
+- authoritative evidence older than `codexSwitch.verificationWindowMs` is never accepted as sufficient proof of chain integrity.
