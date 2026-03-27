@@ -16,7 +16,7 @@ Secondary goal:
 ## 2) Terms
 
 - `local chain head`: refresh token state currently stored in local `auth.json`.
-- `authoritative chain head`: refresh token state accepted by the auth server.
+- `authoritative chain head`: latest server-accepted token state relevant to the active rotation regime.
 - `chain integrity`: local chain head corresponds to a server-issued token that is not known to be consumed or invalidated, and is backed by an authoritative server outcome within verification window `T` (or is explicitly quarantined under ambiguous-failure flow).
 - `writer`: any process that can modify `auth.json`.
 - `cooperative writer`: writer that follows this lock + CAS protocol.
@@ -136,6 +136,9 @@ Add `codexSwitch.multiClientPolicy`:
 - probation auto-recovery:
   - after `M` consecutive clean checks (default `M=5`) on a policy-trusted backend that was demoted to probation due to anomaly, backend/session exits probation automatically (policy can disable auto-recovery via `codexSwitch.probationAutoRecovery: false`).
   - `clean check` definition: successful lock self-test roundtrip (acquire + release test lock), no lease/CAS anomalies, and no authoritative provider rejection during the check interval.
+- unified probe policy (`codexSwitch.probePolicy`):
+  - single source of truth for ambiguous/quarantine probes: `K` attempts, exponential backoff parameters, and termination/escalation conditions.
+  - all probe-based branches (`ambiguous failure`, `gracePeriod` without validity evidence, `familyInvalidation` quarantine) MUST reuse this policy.
 
 ## 9) File-Level Implementation Plan
 
@@ -162,16 +165,26 @@ Add `codexSwitch.multiClientPolicy`:
 
 When conflict detected:
 1. stop write;
-2. branch on rotation regime:
-   - `strictSingleUse`: import current `auth.json` into active profile; re-attempt switch under lease.
-   - `gracePeriod`: attempt auto-resolution only with non-consuming validity evidence and §6 freshness precedence (`last_refresh` -> `iat` -> `mtime`); if auto-resolution succeeds, resume without operator action; otherwise escalate to operator conflict.
-   - `familyInvalidation`: enter quarantine and run mandatory bounded probe; if provider authoritatively rejects (or probe policy is exhausted), force re-login/re-auth.
-3. if conflicts repeat above threshold: enter read-only safety mode and require explicit operator confirmation to resume writes.
-4. if server authoritatively rejects refresh (`invalid_grant`/`already used`): treat local chain as stale, force re-login/import before resuming writes.
+2. classify cause first:
+   - authoritative rejection;
+   - ambiguous failure;
+   - local mismatch only (no provider verdict yet).
+3. branch on rotation regime after classification:
+   - `strictSingleUse`:
+     - local mismatch only: import current `auth.json` into active profile; re-attempt switch under lease.
+     - authoritative rejection: treat local chain as stale and force re-login/import.
+     - ambiguous failure: follow unified probe policy (`codexSwitch.probePolicy`), then escalate on exhaustion.
+   - `gracePeriod`:
+     - attempt auto-resolution only with non-consuming validity evidence and §6 freshness precedence (`last_refresh` -> `iat` -> `mtime`);
+     - if evidence unavailable, follow unified probe policy (`codexSwitch.probePolicy`) (no silent auto-resolve).
+   - `familyInvalidation`:
+     - enter quarantine and run mandatory probes via unified probe policy (`codexSwitch.probePolicy`);
+     - force re-login/re-auth only on authoritative rejection or probe exhaustion.
+4. if conflicts repeat above threshold: enter read-only safety mode and require explicit operator confirmation to resume writes.
 
 When server response is ambiguous:
 1. hold write-path for affected profile/session;
-2. run bounded probe/retry (`K` attempts, exponential backoff);
+2. run bounded probe/retry via unified probe policy (`codexSwitch.probePolicy`);
 3. if unresolved, escalate to `Conflict` with explicit operator path.
 
 When parse/corruption detected:
