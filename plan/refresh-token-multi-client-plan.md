@@ -17,7 +17,7 @@ Secondary goal:
 
 - `local chain head`: refresh token state currently stored in local `auth.json`.
 - `authoritative chain head`: refresh token state accepted by the auth server.
-- `chain integrity`: local chain head corresponds to a server-issued token that is not known to be consumed or invalidated.
+- `chain integrity`: local chain head corresponds to a server-issued token that is not known to be consumed or invalidated, and is backed by an authoritative server outcome within verification window `T` (or is explicitly quarantined under ambiguous-failure flow).
 - `writer`: any process that can modify `auth.json`.
 - `cooperative writer`: writer that follows this lock + CAS protocol.
 - `local safety`: any individual cooperative writer never destroys fresher local state by its own actions.
@@ -26,7 +26,7 @@ Secondary goal:
 
 ## 3) Ontology and Constraints
 
-Refresh token rotation is a linear, one-time state transition, not a plain config update.
+Refresh token behavior is regime-dependent and not a plain config update.
 Therefore:
 - multi-writer is safe only with strict coordination;
 - under non-cooperative or untrusted-backend conditions, race failures are expected (`refresh token already used`).
@@ -38,14 +38,14 @@ Therefore:
 Token rotation regime must be explicit (`codexSwitch.rotationRegime`):
 - `strictSingleUse` (default): linear single-use rotation, no grace.
 - `gracePeriod`: provider may temporarily accept parent and child tokens; benign forks may auto-resolve.
-- `familyInvalidation`: replay may invalidate the entire token family; recovery must force re-authentication.
+- `familyInvalidation`: replay may invalidate the entire token family; recovery uses quarantine + mandatory probe and may require forced re-authentication.
 
 ## 4) Safety Invariants
 
 1. (Cooperative scope) No blind writes to `auth.json`.
 2. (Cooperative scope) Never overwrite a fresher local chain head with an older profile snapshot.
 3. (Cooperative scope) Any write requires active lease ownership acquired atomically.
-4. (Cooperative scope) Commit requires CAS check against expected chain fingerprint.
+4. (Cooperative scope) Commit requires CAS-gate check against expected chain fingerprint; mismatch handling is regime-dependent.
 5. (Cooperative scope) Conflict must abort write and surface remediation.
 6. (Universal scope) Server verdict wins: if provider authoritatively rejects refresh (`invalid_grant`/`already used`), local state is marked stale/conflict and cannot be treated as valid.
 7. (Universal scope) Ambiguous failures (timeout/5xx/transport errors) must not be treated as authoritative rejection until probe/retry policy is exhausted.
@@ -103,9 +103,12 @@ CAS identity:
 1. Capture expected refresh fingerprint from disk before write.
 2. Prepare next payload.
 3. Re-read disk fingerprint just before commit.
-4. If mismatch: `Conflict`, abort write, journal event, user action required.
+4. If mismatch:
+   - Under `strictSingleUse`: `Conflict`, abort write, journal event, user action required.
+   - Under `gracePeriod`: attempt auto-resolution only if provider offers non-consuming validity evidence (or explicit grace semantics). Compare freshness using §6 precedence (`last_refresh` -> `iat` -> `mtime`); if disk token is fresher, pull it silently and skip push; if prepared token is fresher, proceed with write. If validity evidence is unavailable or freshness is indeterminate, treat as ambiguous failure and follow §10 ambiguous flow.
+   - Under `familyInvalidation`: `Conflict`, abort write, and enter quarantine with mandatory bounded probe; force re-auth only on authoritative rejection or exhausted probe policy.
 5. If match: write temp file, backup rotate, atomic replace.
-6. If subsequent refresh attempt is server-rejected, transition to `Conflict` and block further writes until reconciliation.
+6. If subsequent refresh attempt is authoritatively rejected by the server, transition to `Conflict` and block further writes until reconciliation. (Ambiguous failures are handled by step 7.)
 7. Classify refresh failures:
    - `authoritative rejection`: immediate stale/conflict transition.
    - `ambiguous failure`: bounded probe/retry before stale-marking.
@@ -131,7 +134,8 @@ Add `codexSwitch.multiClientPolicy`:
 - lock probation:
   - first lock anomaly (or failed CAS under held lease) demotes backend/session to probation read-only mode until explicit operator re-enable.
 - probation auto-recovery:
-  - after `M` consecutive clean checks (default `M=5`) on trusted backend, backend/session exits probation automatically (policy can disable auto-recovery).
+  - after `M` consecutive clean checks (default `M=5`) on a policy-trusted backend that was demoted to probation due to anomaly, backend/session exits probation automatically (policy can disable auto-recovery via `codexSwitch.probationAutoRecovery: false`).
+  - `clean check` definition: successful lock self-test roundtrip (acquire + release test lock), no lease/CAS anomalies, and no authoritative provider rejection during the check interval.
 
 ## 9) File-Level Implementation Plan
 
@@ -158,10 +162,12 @@ Add `codexSwitch.multiClientPolicy`:
 
 When conflict detected:
 1. stop write;
-2. import current `auth.json` into active profile;
-3. re-attempt switch under lease.
-4. if conflicts repeat above threshold: enter read-only safety mode and require explicit operator confirmation to resume writes.
-5. if server rejects refresh (`invalid_grant`/`already used`): treat local chain as stale, force re-login/import before resuming writes.
+2. branch on rotation regime:
+   - `strictSingleUse`: import current `auth.json` into active profile; re-attempt switch under lease.
+   - `gracePeriod`: attempt auto-resolution only with non-consuming validity evidence and §6 freshness precedence (`last_refresh` -> `iat` -> `mtime`); if auto-resolution succeeds, resume without operator action; otherwise escalate to operator conflict.
+   - `familyInvalidation`: enter quarantine and run mandatory bounded probe; if provider authoritatively rejects (or probe policy is exhausted), force re-login/re-auth.
+3. if conflicts repeat above threshold: enter read-only safety mode and require explicit operator confirmation to resume writes.
+4. if server authoritatively rejects refresh (`invalid_grant`/`already used`): treat local chain as stale, force re-login/import before resuming writes.
 
 When server response is ambiguous:
 1. hold write-path for affected profile/session;
@@ -192,8 +198,9 @@ Integration tests:
 - weak-lock backend simulation (NFS-like semantics) -> lease refusal and automatic read-only safety mode.
 - false-negative reliability probe simulation -> backend remains fail-closed unless explicitly trusted by policy.
 - ambiguous server failure (timeout/5xx) -> bounded probe path before stale-marking.
-- grace-period regime -> benign fork auto-resolves without operator conflict.
-- family-invalidation regime -> forced re-auth path is triggered.
+- grace-period regime with validity evidence -> benign fork auto-resolves without operator conflict.
+- grace-period regime without validity evidence -> falls to §10 ambiguous flow, not silent auto-resolve.
+- family-invalidation regime -> quarantine + mandatory probe path is triggered; forced re-auth only after authoritative reject or exhausted probe policy.
 
 Acceptance criteria:
 - no silent downgrade of local chain head;
